@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英文單字冒險島 - 語音回饋版</title>
+    <style>
+        :root {
+            --primary: #FF8DA1; --secondary: #FFD93D; --accent: #6BCB77;
+            --bg: #FFF9F0; --text: #5F4B32; --error: #e74c3c; --success: #27ae60;
+        }
+        body {
+            font-family: "Microsoft JhengHei", sans-serif; background: var(--bg);
+            background-image: radial-gradient(var(--secondary) 1px, transparent 1px);
+            background-size: 20px 20px; display: flex; justify-content: center;
+            min-height: 100vh; margin: 0; padding: 20px; color: var(--text);
+        }
+        .container {
+            background: white; width: 100%; max-width: 500px; padding: 30px;
+            border-radius: 40px; box-shadow: 0 12px 0 #EADBC8;
+            border: 5px solid var(--text); position: relative; transition: background 0.3s;
+        }
+        /* 反饋動畫背景 */
+        .feedback-correct { background-color: #d4edda !important; }
+        .feedback-wrong { background-color: #f8d7da !important; }
+
+        .header { text-align: center; margin-bottom: 20px; }
+        #timer {
+            font-size: 1.4rem; font-weight: bold; background: var(--secondary);
+            padding: 5px 20px; border-radius: 20px; border: 3px solid var(--text);
+            display: inline-block; margin-bottom: 10px;
+        }
+        .progress-bar-wrap {
+            width: 100%; height: 12px; background: #eee;
+            border-radius: 10px; border: 3px solid var(--text); overflow: hidden; margin: 10px 0;
+        }
+        #progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.3s; }
+        
+        .question-box {
+            background: #FFF; border: 4px dashed var(--primary);
+            border-radius: 25px; padding: 20px; margin-bottom: 20px;
+            min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .question-text { font-size: 2.2rem; font-weight: bold; text-align: center; margin: 5px 0; }
+        .type-tag { background: var(--primary); color: white; padding: 3px 12px; border-radius: 10px; font-size: 0.9rem; margin-bottom: 10px; }
+        
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+        button, .action-btn {
+            padding: 15px 10px; font-size: 1.1rem; font-weight: bold;
+            border: 3px solid var(--text); border-radius: 15px;
+            background: white; box-shadow: 0 5px 0 var(--text); cursor: pointer; transition: 0.1s;
+        }
+        button:active, .action-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--text); }
+        
+        #spelling-input {
+            width: 85%; padding: 15px; font-size: 1.5rem; text-align: center;
+            border: 3px solid var(--text); border-radius: 15px; margin-bottom: 15px; outline: none;
+        }
+        
+        #feedback-hint { font-size: 1.2rem; font-weight: bold; margin-top: 10px; min-height: 1.5rem; }
+        .hidden { display: none !important; }
+        
+        .audio-btn {
+            background: var(--accent) !important; color: white !important;
+            padding: 8px 20px; border-radius: 20px; margin-bottom: 10px;
+        }
+
+        .summary-box { text-align: left; background: #f9f9f9; padding: 15px; border-radius: 15px; border: 2px solid #ddd; margin-top: 15px; max-height: 300px; overflow-y: auto; }
+        .summary-item { padding: 5px 0; border-bottom: 1px solid #eee; }
+        .text-correct { color: var(--success); font-weight: bold; }
+        .text-wrong { color: var(--error); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-container">
+    <div id="start-screen">
+        <h1 style="text-align:center;">🌟 英文冒險島</h1>
+        <div style="font-size: 4rem; text-align: center;">🎨</div>
+        <button onclick="startTest('mixed')" class="action-btn" style="width:100%; margin:10px 0; background: var(--secondary);">🎲 隨機模式 (選/聽)</button>
+        <button onclick="startTest('spelling')" class="action-btn" style="width:100%; margin:10px 0; background: var(--accent); color: white;">✏️ 拼寫模式 (聽/寫)</button>
+    </div>
+
+    <div id="quiz-screen" class="hidden">
+        <div class="header">
+            <div id="timer">⏰ 10:00</div>
+            <div class="progress-bar-wrap"><div id="progress-fill"></div></div>
+            <div style="font-weight:bold;">進度：<span id="current-idx">1</span> / 40</div>
+        </div>
+        <div class="question-box">
+            <div id="type-label" class="type-tag">模式</div>
+            <button class="audio-btn" id="repeat-audio-btn" onclick="playQuestionAudio()">🔊 重複唸讀音</button>
+            <div class="question-text" id="question-display">...</div>
+            <div id="feedback-hint"></div>
+        </div>
+
+        <div id="options-container" class="options"></div>
+
+        <div id="spelling-container" class="hidden" style="text-align: center;">
+            <input type="text" id="spelling-input" placeholder="請拼出英文單字" autocomplete="off">
+            <button onclick="submitSpelling()" class="action-btn" style="width: 100%; background: var(--accent); color: white;">確認作答</button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="hidden" style="text-align:center;">
+        <h2>🏆 冒險總結</h2>
+        <h1 id="score-display" style="font-size: 3rem; color: var(--primary);">0</h1>
+        <div class="summary-box" id="full-summary"></div>
+        <button onclick="location.reload()" class="action-btn" style="margin-top:20px; width:100%; background: var(--primary); color:white;">再玩一次 🔄</button>
+    </div>
+</div>
+
+<script>
+const fullWordBank = [
+    {n:1, en:"one", cn:"一"}, {n:2, en:"two", cn:"二"}, {n:3, en:"three", cn:"三"}, {n:4, en:"four", cn:"四"}, {n:5, en:"five", cn:"五"},
+    {n:6, en:"six", cn:"六"}, {n:7, en:"seven", cn:"七"}, {n:8, en:"eight", cn:"八"}, {n:9, en:"nine", cn:"九"}, {n:10, en:"ten", cn:"十"},
+    {n:11, en:"eleven", cn:"十一"}, {n:12, en:"twelve", cn:"十二"}, {n:13, en:"thirteen", cn:"十三"}, {n:14, en:"fourteen", cn:"十四"}, {n:15, en:"fifteen", cn:"十五"},
+    {n:16, en:"sixteen", cn:"十六"}, {n:17, en:"seventeen", cn:"十七"}, {n:18, en:"eighteen", cn:"十八"}, {n:19, en:"nineteen", cn:"十九"}, {n:20, en:"twenty", cn:"二十"},
+    {n:21, en:"red", cn:"紅色"}, {n:22, en:"blue", cn:"藍色"}, {n:23, en:"yellow", cn:"黃色"}, {n:24, en:"black", cn:"黑色"}, {n:25, en:"pink", cn:"粉紅色"},
+    {n:26, en:"green", cn:"綠色"}, {n:27, en:"white", cn:"白色"}, {n:28, en:"purple", cn:"紫色"}, {n:29, en:"orange", cn:"橘色"}, {n:30, en:"cat", cn:"貓"},
+    {n:31, en:"dog", cn:"狗"}, {n:32, en:"fish", cn:"魚"}, {n:33, en:"frog", cn:"青蛙"}, {n:34, en:"bird", cn:"鳥"}, {n:35, en:"elephant", cn:"大象"},
+    {n:36, en:"pig", cn:"豬"}, {n:37, en:"monkey", cn:"猴子"}, {n:38, en:"rabbit", cn:"兔子"}, {n:39, en:"mother", cn:"媽媽"}, {n:40, en:"father", cn:"爸爸"},
+    {n:41, en:"sister", cn:"姐姐(妹妹)"}, {n:42, en:"brother", cn:"哥哥(弟弟)"}, {n:43, en:"grandmother", cn:"奶奶"}, {n:44, en:"grandfather", cn:"爺爺"}, {n:45, en:"girl", cn:"女孩"},
+    {n:46, en:"boy", cn:"男孩"}, {n:47, en:"teacher", cn:"老師"}, {n:48, en:"student", cn:"學生"}, {n:49, en:"doctor", cn:"醫生"}, {n:50, en:"nurse", cn:"護士"},
+    {n:51, en:"cook", cn:"廚師"}, {n:52, en:"driver", cn:"司機"}, {n:53, en:"farmer", cn:"農夫"}, {n:54, en:"book", cn:"書"}, {n:55, en:"eraser", cn:"橡皮擦"},
+    {n:56, en:"pen", cn:"原子筆"}, {n:57, en:"pencil", cn:"鉛筆"}, {n:58, en:"ruler", cn:"尺"}, {n:59, en:"marker", cn:"麥克筆"}, {n:60, en:"kite", cn:"風箏"},
+    {n:61, en:"ball", cn:"球"}, {n:62, en:"table", cn:"桌子"}, {n:63, en:"desk", cn:"書桌"}, {n:64, en:"sofa", cn:"沙發"}, {n:65, en:"lamp", cn:"檯燈"},
+    {n:66, en:"box", cn:"箱子"}, {n:67, en:"clock", cn:"時鐘"}, {n:68, en:"window", cn:"窗戶"}, {n:69, en:"door", cn:"門"}, {n:70, en:"bag", cn:"袋子"},
+    {n:71, en:"robot", cn:"機器人"}, {n:72, en:"rice", cn:"飯"}, {n:73, en:"ice cream", cn:"冰淇淋"}, {n:74, en:"hot dog", cn:"熱狗"}, {n:75, en:"egg", cn:"蛋"},
+    {n:76, en:"pizza", cn:"披薩"}, {n:77, en:"cake", cn:"蛋糕"}, {n:78, en:"banana", cn:"香蕉"}, {n:79, en:"apple", cn:"蘋果"}, {n:80, en:"tomato", cn:"番茄"},
+    {n:81, en:"bread", cn:"麵包"}, {n:82, en:"juice", cn:"果汁"}, {n:83, en:"milk", cn:"牛奶"}, {n:84, en:"ham", cn:"火腿"}, {n:85, en:"grape", cn:"葡萄"},
+    {n:86, en:"noodles", cn:"麵條"}, {n:87, en:"water", cn:"水"}, {n:88, en:"salad", cn:"沙拉"}, {n:89, en:"hamburger", cn:"漢堡"}, {n:90, en:"sunny", cn:"晴朗的"},
+    {n:91, en:"windy", cn:"颳風的"}, {n:92, en:"rainy", cn:"下雨的"}, {n:93, en:"cloudy", cn:"陰天的"}, {n:94, en:"hot", cn:"熱的"}, {n:95, en:"cold", cn:"冷的"},
+    {n:96, en:"angry", cn:"生氣的"}, {n:97, en:"hungry", cn:"肚子餓的"}, {n:98, en:"sad", cn:"難過的"}, {n:99, en:"thirsty", cn:"口渴的"}, {n:100, en:"happy", cn:"快樂的"}
+];
+
+let testPool = [], currentIndex = 0, score = 0, timeLeft = 600, timerInterval;
+let allResults = []; // 存儲所有題目的結果
+let gameMode = 'mixed', isWaiting = false;
+
+function startTest(mode) {
+    gameMode = mode;
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('quiz-screen').classList.remove('hidden');
+    testPool = [...fullWordBank].sort(() => Math.random() - 0.5).slice(0, 40);
+    currentIndex = 0; score = 0; allResults = []; timeLeft = 600;
+    startTimer(); showQuestion();
+}
+
+function startTimer() {
+    if(timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if(!isWaiting) timeLeft--;
+        let min = Math.floor(timeLeft / 60), sec = timeLeft % 60;
+        document.getElementById('timer').innerText = `⏰ ${min}:${sec < 10 ? '0'+sec : sec}`;
+        if (timeLeft <= 0) endTest();
+    }, 1000);
+}
+
+function showQuestion() {
+    if (currentIndex >= 40) return endTest();
+    isWaiting = false;
+    const q = testPool[currentIndex];
+    const container = document.getElementById('main-container');
+    container.className = 'container';
+    document.getElementById('feedback-hint').innerText = '';
+    document.getElementById('spelling-input').value = '';
+    document.getElementById('current-idx').innerText = currentIndex + 1;
+    document.getElementById('progress-fill').style.width = (currentIndex / 40 * 100) + '%';
+
+    document.getElementById('options-container').classList.add('hidden');
+    document.getElementById('spelling-container').classList.add('hidden');
+
+    if (gameMode === 'spelling') {
+        document.getElementById('type-label').innerText = "拼寫模式：聽音填寫";
+        document.getElementById('question-display').innerText = q.cn;
+        document.getElementById('spelling-container').classList.remove('hidden');
+        document.getElementById('repeat-audio-btn').classList.remove('hidden');
+        playQuestionAudio();
+    } else {
+        document.getElementById('options-container').classList.remove('hidden');
+        document.getElementById('repeat-audio-btn').classList.add('hidden');
+        const type = Math.floor(Math.random() * 3);
+        let correct = "", opts = [], pool = fullWordBank.filter(w => w.en !== q.en).sort(() => Math.random() - 0.5).slice(0, 3);
+        
+        if (type === 0) {
+            document.getElementById('type-label').innerText = "聽力模式";
+            document.getElementById('repeat-audio-btn').classList.remove('hidden');
+            document.getElementById('question-display').innerText = "???";
+            correct = q.cn; opts = [q.cn, ...pool.map(p => p.cn)];
+            playQuestionAudio();
+        } else if (type === 1) {
+            document.getElementById('type-label').innerText = "中選英";
+            document.getElementById('question-display').innerText = q.cn;
+            correct = q.en; opts = [q.en, ...pool.map(p => p.en)];
+        } else {
+            document.getElementById('type-label').innerText = "英選中";
+            document.getElementById('question-display').innerText = q.en;
+            correct = q.cn; opts = [q.cn, ...pool.map(p => p.cn)];
+        }
+
+        opts.sort(() => Math.random() - 0.5).forEach(o => {
+            const b = document.createElement('button');
+            b.innerText = o; b.onclick = () => checkAnswer(o, correct, q);
+            document.getElementById('options-container').appendChild(b);
+        });
+    }
+}
+
+function submitSpelling() {
+    if(isWaiting) return;
+    const input = document.getElementById('spelling-input').value.trim().toLowerCase();
+    const correct = testPool[currentIndex].en.toLowerCase();
+    checkAnswer(input, correct, testPool[currentIndex]);
+}
+
+function checkAnswer(selected, correct, wordObj) {
+    if(isWaiting) return;
+    isWaiting = true;
+    const container = document.getElementById('main-container');
+    const hint = document.getElementById('feedback-hint');
+    const isCorrect = selected === correct;
+
+    if (isCorrect) {
+        score += 2.5;
+        container.classList.add('feedback-correct');
+        hint.innerHTML = "<span class='text-correct'>✨ 正確！太棒了</span>";
+    } else {
+        container.classList.add('feedback-wrong');
+        hint.innerHTML = `<span class='text-wrong'>❌ 錯誤！正確是：${correct}</span>`;
+    }
+
+    allResults.push({ word: wordObj.en, cn: wordObj.cn, user: selected, correct: correct, status: isCorrect });
+
+    setTimeout(() => {
+        currentIndex++;
+        showQuestion();
+    }, 1500);
+}
+
+function playQuestionAudio() {
+    const utterance = new SpeechSynthesisUtterance(testPool[currentIndex].en);
+    utterance.lang = 'en-US';
+    window.speechSynthesis.speak(utterance);
+}
+
+function endTest() {
+    clearInterval(timerInterval);
+    document.getElementById('quiz-screen').classList.add('hidden');
+    document.getElementById('result-screen').classList.remove('hidden');
+    document.getElementById('score-display').innerText = score + " 分";
+    
+    const summary = document.getElementById('full-summary');
+    summary.innerHTML = "<h3>冒險歷程記錄：</h3>";
+    allResults.forEach((r, i) => {
+        summary.innerHTML += `
+            <div class="summary-item">
+                ${i+1}. <strong>${r.word}</strong> (${r.cn})<br>
+                你的答案：<span class="${r.status ? 'text-correct' : 'text-wrong'}">${r.user || '(未填)'}</span> 
+                ${r.status ? '' : ` | 正解：<span class="text-correct">${r.correct}</span>`}
+            </div>`;
+    });
+}
+
+document.getElementById('spelling-input').addEventListener('keypress', (e) => { if(e.key==='Enter') submitSpelling(); });
+</script>
+</body>
+</html>
