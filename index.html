@@ -2,8 +2,9 @@
 <html lang="zh-Hant-TW">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英文單字冒險島 - 語音回饋版</title>
+    <title>英文單字冒險島 - 極速回饋版</title>
     <style>
         :root {
             --primary: #FF8DA1; --secondary: #FFD93D; --accent: #6BCB77;
@@ -20,7 +21,6 @@
             border-radius: 40px; box-shadow: 0 12px 0 #EADBC8;
             border: 5px solid var(--text); position: relative; transition: background 0.3s;
         }
-        /* 反饋動畫背景 */
         .feedback-correct { background-color: #d4edda !important; }
         .feedback-wrong { background-color: #f8d7da !important; }
 
@@ -76,14 +76,14 @@
 <div class="container" id="main-container">
     <div id="start-screen">
         <h1 style="text-align:center;">🌟 英文冒險島</h1>
-        <div style="font-size: 4rem; text-align: center;">🎨</div>
-        <button onclick="startTest('mixed')" class="action-btn" style="width:100%; margin:10px 0; background: var(--secondary);">🎲 隨機模式 (選/聽)</button>
-        <button onclick="startTest('spelling')" class="action-btn" style="width:100%; margin:10px 0; background: var(--accent); color: white;">✏️ 拼寫模式 (聽/寫)</button>
+        <div style="font-size: 4rem; text-align: center;">⚡</div>
+        <button onclick="startTest('mixed')" class="action-btn" style="width:100%; margin:10px 0; background: var(--secondary);">🎲 隨機模式 (10分鐘挑戰)</button>
+        <button onclick="startTest('spelling')" class="action-btn" style="width:100%; margin:10px 0; background: var(--accent); color: white;">✏️ 拼寫模式 (不計回饋時間)</button>
     </div>
 
     <div id="quiz-screen" class="hidden">
         <div class="header">
-            <div id="timer">⏰ 10:00</div>
+            <div id="timer">⏰ 00:00</div>
             <div class="progress-bar-wrap"><div id="progress-fill"></div></div>
             <div style="font-weight:bold;">進度：<span id="current-idx">1</span> / 40</div>
         </div>
@@ -103,14 +103,16 @@
     </div>
 
     <div id="result-screen" class="hidden" style="text-align:center;">
-        <h2>🏆 冒險總結</h2>
+        <h2 id="result-title">🏆 冒險總結</h2>
         <h1 id="score-display" style="font-size: 3rem; color: var(--primary);">0</h1>
+        <p id="final-time-text" style="font-weight:bold;"></p>
         <div class="summary-box" id="full-summary"></div>
         <button onclick="location.reload()" class="action-btn" style="margin-top:20px; width:100%; background: var(--primary); color:white;">再玩一次 🔄</button>
     </div>
 </div>
 
 <script>
+// 100個單字資料庫
 const fullWordBank = [
     {n:1, en:"one", cn:"一"}, {n:2, en:"two", cn:"二"}, {n:3, en:"three", cn:"三"}, {n:4, en:"four", cn:"四"}, {n:5, en:"five", cn:"五"},
     {n:6, en:"six", cn:"六"}, {n:7, en:"seven", cn:"七"}, {n:8, en:"eight", cn:"八"}, {n:9, en:"nine", cn:"九"}, {n:10, en:"ten", cn:"十"},
@@ -134,32 +136,43 @@ const fullWordBank = [
     {n:96, en:"angry", cn:"生氣的"}, {n:97, en:"hungry", cn:"肚子餓的"}, {n:98, en:"sad", cn:"難過的"}, {n:99, en:"thirsty", cn:"口渴的"}, {n:100, en:"happy", cn:"快樂的"}
 ];
 
-let testPool = [], currentIndex = 0, score = 0, timeLeft = 600, timerInterval;
-let allResults = []; // 存儲所有題目的結果
-let gameMode = 'mixed', isWaiting = false;
+let testPool = [], currentIndex = 0, score = 0, timerVal = 0, timerInterval;
+let allResults = [], gameMode = 'mixed', isWaiting = false;
 
 function startTest(mode) {
     gameMode = mode;
     document.getElementById('start-screen').classList.add('hidden');
     document.getElementById('quiz-screen').classList.remove('hidden');
     testPool = [...fullWordBank].sort(() => Math.random() - 0.5).slice(0, 40);
-    currentIndex = 0; score = 0; allResults = []; timeLeft = 600;
+    currentIndex = 0; score = 0; allResults = [];
+    timerVal = (gameMode === 'mixed') ? 600 : 0;
     startTimer(); showQuestion();
 }
 
 function startTimer() {
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-        if(!isWaiting) timeLeft--;
-        let min = Math.floor(timeLeft / 60), sec = timeLeft % 60;
-        document.getElementById('timer').innerText = `⏰ ${min}:${sec < 10 ? '0'+sec : sec}`;
-        if (timeLeft <= 0) endTest();
+        if(!isWaiting) {
+            if (gameMode === 'mixed') {
+                timerVal--;
+                if (timerVal <= 0) endTest();
+            } else {
+                timerVal++; 
+            }
+            updateTimerDisplay();
+        }
     }, 1000);
+}
+
+function updateTimerDisplay() {
+    let m = Math.floor(Math.abs(timerVal) / 60);
+    let s = Math.abs(timerVal) % 60;
+    document.getElementById('timer').innerText = `⏰ ${m}:${s < 10 ? '0'+s : s}`;
 }
 
 function showQuestion() {
     if (currentIndex >= 40) return endTest();
-    isWaiting = false;
+    isWaiting = false; 
     const q = testPool[currentIndex];
     const container = document.getElementById('main-container');
     container.className = 'container';
@@ -167,12 +180,13 @@ function showQuestion() {
     document.getElementById('spelling-input').value = '';
     document.getElementById('current-idx').innerText = currentIndex + 1;
     document.getElementById('progress-fill').style.width = (currentIndex / 40 * 100) + '%';
+    document.getElementById('options-container').innerHTML = ''; 
 
     document.getElementById('options-container').classList.add('hidden');
     document.getElementById('spelling-container').classList.add('hidden');
 
     if (gameMode === 'spelling') {
-        document.getElementById('type-label').innerText = "拼寫模式：聽音填寫";
+        document.getElementById('type-label').innerText = "拼寫練習模式";
         document.getElementById('question-display').innerText = q.cn;
         document.getElementById('spelling-container').classList.remove('hidden');
         document.getElementById('repeat-audio-btn').classList.remove('hidden');
@@ -181,28 +195,33 @@ function showQuestion() {
         document.getElementById('options-container').classList.remove('hidden');
         document.getElementById('repeat-audio-btn').classList.add('hidden');
         const type = Math.floor(Math.random() * 3);
-        let correct = "", opts = [], pool = fullWordBank.filter(w => w.en !== q.en).sort(() => Math.random() - 0.5).slice(0, 3);
+        let correctOption = "", optionsArray = [];
+        let wrongPool = fullWordBank.filter(w => w.en !== q.en).sort(() => Math.random() - 0.5).slice(0, 3);
         
-        if (type === 0) {
-            document.getElementById('type-label').innerText = "聽力模式";
+        if (type === 0) { 
+            document.getElementById('type-label').innerText = "聽力模式 (4選1)";
             document.getElementById('repeat-audio-btn').classList.remove('hidden');
             document.getElementById('question-display').innerText = "???";
-            correct = q.cn; opts = [q.cn, ...pool.map(p => p.cn)];
+            correctOption = q.cn;
+            optionsArray = [q.cn, ...wrongPool.map(p => p.cn)];
             playQuestionAudio();
-        } else if (type === 1) {
-            document.getElementById('type-label').innerText = "中選英";
+        } else if (type === 1) { 
+            document.getElementById('type-label').innerText = "中選英 (4選1)";
             document.getElementById('question-display').innerText = q.cn;
-            correct = q.en; opts = [q.en, ...pool.map(p => p.en)];
-        } else {
-            document.getElementById('type-label').innerText = "英選中";
+            correctOption = q.en;
+            optionsArray = [q.en, ...wrongPool.map(p => p.en)];
+        } else { 
+            document.getElementById('type-label').innerText = "英選中 (4選1)";
             document.getElementById('question-display').innerText = q.en;
-            correct = q.cn; opts = [q.cn, ...pool.map(p => p.cn)];
+            correctOption = q.cn;
+            optionsArray = [q.cn, ...wrongPool.map(p => p.cn)];
         }
 
-        opts.sort(() => Math.random() - 0.5).forEach(o => {
-            const b = document.createElement('button');
-            b.innerText = o; b.onclick = () => checkAnswer(o, correct, q);
-            document.getElementById('options-container').appendChild(b);
+        optionsArray.sort(() => Math.random() - 0.5).forEach(opt => {
+            const btn = document.createElement('button');
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(opt, correctOption, q);
+            document.getElementById('options-container').appendChild(btn);
         });
     }
 }
@@ -216,26 +235,27 @@ function submitSpelling() {
 
 function checkAnswer(selected, correct, wordObj) {
     if(isWaiting) return;
-    isWaiting = true;
+    isWaiting = true; 
     const container = document.getElementById('main-container');
     const hint = document.getElementById('feedback-hint');
-    const isCorrect = selected === correct;
+    const isCorrect = (selected.toLowerCase() === correct.toLowerCase());
 
     if (isCorrect) {
         score += 2.5;
         container.classList.add('feedback-correct');
-        hint.innerHTML = "<span class='text-correct'>✨ 正確！太棒了</span>";
+        hint.innerHTML = "<span class='text-correct'>✨ 正確！</span>";
     } else {
         container.classList.add('feedback-wrong');
-        hint.innerHTML = `<span class='text-wrong'>❌ 錯誤！正確是：${correct}</span>`;
+        hint.innerHTML = `<span class='text-wrong'>❌ 錯誤！正解：${correct}</span>`;
     }
 
     allResults.push({ word: wordObj.en, cn: wordObj.cn, user: selected, correct: correct, status: isCorrect });
 
+    // 本次調整重點：將 setTimeout 設為 800 毫秒
     setTimeout(() => {
         currentIndex++;
         showQuestion();
-    }, 1500);
+    }, 800); 
 }
 
 function playQuestionAudio() {
@@ -249,20 +269,30 @@ function endTest() {
     document.getElementById('quiz-screen').classList.add('hidden');
     document.getElementById('result-screen').classList.remove('hidden');
     document.getElementById('score-display').innerText = score + " 分";
+    let m = Math.floor(Math.abs(timerVal) / 60);
+    let s = Math.abs(timerVal) % 60;
+    
+    if (gameMode === 'mixed') {
+        document.getElementById('result-title').innerText = "🏆 隨機挑戰結束";
+        document.getElementById('final-time-text').innerText = `剩餘時間：${m}分${s}秒`;
+    } else {
+        document.getElementById('result-title').innerText = "📚 拼寫練習完成";
+        document.getElementById('final-time-text').innerText = `作答用時：${m}分${s}秒 (不含回饋時間)`;
+    }
     
     const summary = document.getElementById('full-summary');
-    summary.innerHTML = "<h3>冒險歷程記錄：</h3>";
+    summary.innerHTML = "<h3>詳細紀錄：</h3>";
     allResults.forEach((r, i) => {
         summary.innerHTML += `
             <div class="summary-item">
                 ${i+1}. <strong>${r.word}</strong> (${r.cn})<br>
-                你的答案：<span class="${r.status ? 'text-correct' : 'text-wrong'}">${r.user || '(未填)'}</span> 
+                作答：<span class="${r.status ? 'text-correct' : 'text-wrong'}">${r.user || '(未填)'}</span> 
                 ${r.status ? '' : ` | 正解：<span class="text-correct">${r.correct}</span>`}
             </div>`;
     });
 }
 
-document.getElementById('spelling-input').addEventListener('keypress', (e) => { if(e.key==='Enter') submitSpelling(); });
+document.getElementById('spelling-input')?.addEventListener('keypress', (e) => { if(e.key==='Enter') submitSpelling(); });
 </script>
 </body>
 </html>
