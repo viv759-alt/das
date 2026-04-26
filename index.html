@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英文單字冒險島 - 極速回饋版</title>
+    <title>英文單字冒險島 - 智能回饋時長版</title>
     <style>
         :root {
             --primary: #FF8DA1; --secondary: #FFD93D; --accent: #6BCB77;
@@ -57,7 +57,7 @@
             border: 3px solid var(--text); border-radius: 15px; margin-bottom: 15px; outline: none;
         }
         
-        #feedback-hint { font-size: 1.2rem; font-weight: bold; margin-top: 10px; min-height: 1.5rem; }
+        #feedback-hint { font-size: 1.1rem; font-weight: bold; margin-top: 10px; min-height: 1.5rem; }
         .hidden { display: none !important; }
         
         .audio-btn {
@@ -69,6 +69,7 @@
         .summary-item { padding: 5px 0; border-bottom: 1px solid #eee; }
         .text-correct { color: var(--success); font-weight: bold; }
         .text-wrong { color: var(--error); font-weight: bold; }
+        .text-hint { color: #856404; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -76,9 +77,9 @@
 <div class="container" id="main-container">
     <div id="start-screen">
         <h1 style="text-align:center;">🌟 英文冒險島</h1>
-        <div style="font-size: 4rem; text-align: center;">⚡</div>
+        <div style="font-size: 4rem; text-align: center;">⏰</div>
         <button onclick="startTest('mixed')" class="action-btn" style="width:100%; margin:10px 0; background: var(--secondary);">🎲 隨機模式 (10分鐘挑戰)</button>
-        <button onclick="startTest('spelling')" class="action-btn" style="width:100%; margin:10px 0; background: var(--accent); color: white;">✏️ 拼寫模式 (不計回饋時間)</button>
+        <button onclick="startTest('spelling')" class="action-btn" style="width:100%; margin:10px 0; background: var(--accent); color: white;">✏️ 拼寫模式 (累積時間)</button>
     </div>
 
     <div id="quiz-screen" class="hidden">
@@ -186,7 +187,7 @@ function showQuestion() {
     document.getElementById('spelling-container').classList.add('hidden');
 
     if (gameMode === 'spelling') {
-        document.getElementById('type-label').innerText = "拼寫練習模式";
+        document.getElementById('type-label').innerText = "拼寫模式 (空格寬容機制)";
         document.getElementById('question-display').innerText = q.cn;
         document.getElementById('spelling-container').classList.remove('hidden');
         document.getElementById('repeat-audio-btn').classList.remove('hidden');
@@ -238,24 +239,40 @@ function checkAnswer(selected, correct, wordObj) {
     isWaiting = true; 
     const container = document.getElementById('main-container');
     const hint = document.getElementById('feedback-hint');
-    const isCorrect = (selected.toLowerCase() === correct.toLowerCase());
+    
+    // 智能比對
+    const selectedPure = selected.toLowerCase().replace(/\s+/g, '');
+    const correctPure = correct.toLowerCase().replace(/\s+/g, '');
+    const isCorrect = (selectedPure === correctPure);
+    const missedSpace = (isCorrect && selected.toLowerCase() !== correct.toLowerCase() && correct.includes(' '));
+
+    // 決定回饋秒數：若答錯或漏空格，使用 1.5 秒；若完美正確，使用 0.8 秒
+    const feedbackTime = (!isCorrect || missedSpace) ? 1500 : 800;
 
     if (isCorrect) {
         score += 2.5;
         container.classList.add('feedback-correct');
-        hint.innerHTML = "<span class='text-correct'>✨ 正確！</span>";
+        let msg = "<span class='text-correct'>✨ 正確！</span>";
+        if(missedSpace) msg += "<br><span class='text-hint'>(提醒：中間要有空格喔)</span>";
+        hint.innerHTML = msg;
     } else {
         container.classList.add('feedback-wrong');
         hint.innerHTML = `<span class='text-wrong'>❌ 錯誤！正解：${correct}</span>`;
     }
 
-    allResults.push({ word: wordObj.en, cn: wordObj.cn, user: selected, correct: correct, status: isCorrect });
+    allResults.push({ 
+        word: wordObj.en, 
+        cn: wordObj.cn, 
+        user: selected, 
+        correct: correct, 
+        status: isCorrect,
+        note: missedSpace ? " (漏了空格)" : ""
+    });
 
-    // 本次調整重點：將 setTimeout 設為 800 毫秒
     setTimeout(() => {
         currentIndex++;
         showQuestion();
-    }, 800); 
+    }, feedbackTime); 
 }
 
 function playQuestionAudio() {
@@ -272,13 +289,8 @@ function endTest() {
     let m = Math.floor(Math.abs(timerVal) / 60);
     let s = Math.abs(timerVal) % 60;
     
-    if (gameMode === 'mixed') {
-        document.getElementById('result-title').innerText = "🏆 隨機挑戰結束";
-        document.getElementById('final-time-text').innerText = `剩餘時間：${m}分${s}秒`;
-    } else {
-        document.getElementById('result-title').innerText = "📚 拼寫練習完成";
-        document.getElementById('final-time-text').innerText = `作答用時：${m}分${s}秒 (不含回饋時間)`;
-    }
+    document.getElementById('final-time-text').innerText = (gameMode === 'mixed') ? 
+        `剩餘時間：${m}分${s}秒` : `作答用時：${m}分${s}秒 (已扣除回饋時間)`;
     
     const summary = document.getElementById('full-summary');
     summary.innerHTML = "<h3>詳細紀錄：</h3>";
@@ -286,7 +298,7 @@ function endTest() {
         summary.innerHTML += `
             <div class="summary-item">
                 ${i+1}. <strong>${r.word}</strong> (${r.cn})<br>
-                作答：<span class="${r.status ? 'text-correct' : 'text-wrong'}">${r.user || '(未填)'}</span> 
+                作答：<span class="${r.status ? 'text-correct' : 'text-wrong'}">${r.user || '(未填)'}${r.note}</span> 
                 ${r.status ? '' : ` | 正解：<span class="text-correct">${r.correct}</span>`}
             </div>`;
     });
